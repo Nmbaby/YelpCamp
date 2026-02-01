@@ -1,5 +1,4 @@
 <% layout('layouts/boilerplate')%>
-<div id="cluster-map"></div>
 <div class="container">
 <h1>All Campgrounds</h1>
 
@@ -29,9 +28,67 @@
 </div>
 <% }%>
 </div>
-<script>
-    const mapToken = '<%-process.env.MAPBOX_TOKEN%>';
-    const campgrounds = { features: <%- JSON.stringify(campgrounds) %>}
-</script>
+<!-- Add Leaflet CSS/JS (if layout doesn't already include them) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-<script src="/javascripts/clusterMap.js"></script>
+<!-- Map container for index page (shows multiple campgrounds) -->
+<div id="map" style="height: 400px; margin-bottom: 1rem;"></div>
+
+<script src="/javascripts/leaflet-maps.js"></script>
+<script>
+	// Embed campgrounds data from server into the page: only include minimal fields used by the map.
+	const campgroundsData = <%- JSON.stringify(campgrounds.map(c => ({
+		_id: c._id,
+		title: c.title,
+		location: c.location,
+		geometry: c.geometry || null
+	}))) %>;
+
+	// Small utility to escape text used in popup HTML to avoid injection
+	function escapeHtml(str = '') {
+		return String(str)
+			.replaceAll('&', '&amp;')
+			.replaceAll('<', '&lt;')
+			.replaceAll('>', '&gt;')
+			.replaceAll('"', '&quot;')
+			.replaceAll("'", '&#39;');
+	}
+
+	document.addEventListener('DOMContentLoaded', async function () {
+		try {
+			// Create the map. The helper will dynamically load Leaflet if needed.
+			const map = await YCLeaflet.createMap('map', [39, -98], 5);
+			if (!map) {
+				console.warn('Map not created (Leaflet may have failed to load or CSP blocked assets).');
+				return;
+			}
+
+			// Add markers for campgrounds that have geometry
+			campgroundsData.forEach(cg => {
+				if (cg.geometry && Array.isArray(cg.geometry.coordinates)) {
+					const popupText = `<strong>${escapeHtml(cg.title)}</strong><br>${escapeHtml(cg.location || '')}`;
+					// YCLeaflet.addMarker expects a campground-like object with geometry & popupText
+					YCLeaflet.addMarker(map, { ...cg, popupText });
+				}
+			});
+
+			// Fit bounds to markers if any exist
+			const coords = campgroundsData
+				.filter(cg => cg.geometry && Array.isArray(cg.geometry.coordinates))
+				.map(cg => [cg.geometry.coordinates[1], cg.geometry.coordinates[0]]); // [lat, lng]
+			if (coords.length > 0) {
+				map.fitBounds(L.latLngBounds(coords).pad(0.2));
+			} else {
+				console.info('No campground coordinates found; map will show default center/zoom.');
+			}
+
+			// Helpful debugging: print how many campgrounds and how many have coordinates
+			const total = campgroundsData.length;
+			const withCoords = coords.length;
+			console.debug(`Campgrounds: ${total}, with geometry: ${withCoords}`);
+		} catch (err) {
+			console.error('Index map init error:', err);
+		}
+	});
+</script>

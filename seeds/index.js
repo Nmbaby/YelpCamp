@@ -1,13 +1,11 @@
+require("dotenv").config();
+
 const mongoose = require('mongoose');
 const cities = require('./cities');
 const { places, descriptors } = require('./seedHelpers');
 const Campground = require('../models/campground');
 
-mongoose.connect('mongodb://localhost:27017/yelp-camp', {
-    useNewUrlParser: true,
-    useCreateIndex: true,
-    useUnifiedTopology: true
-});
+mongoose.connect(/*process.env.DB_URL*/ "mongodb://localhost:27017/yelp-camp");
 
 const db = mongoose.connection;
 
@@ -17,7 +15,6 @@ db.once("open", () => {
 });
 
 const sample = array => array[Math.floor(Math.random() * array.length)];
-
 
 const seedDB = async () => {
     await Campground.deleteMany({});
@@ -56,3 +53,14 @@ const seedDB = async () => {
 seedDB().then(() => {
     mongoose.connection.close();
 })
+
+// const mongoose = require("mongoose");
+
+// mongoose
+//   .connect(process.env.DB_URL)
+//   .then(() => {
+//     console.log("CONNECTED");
+//   })
+//   .catch((err) => {
+//     console.log(err);
+//   });

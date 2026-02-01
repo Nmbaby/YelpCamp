@@ -23,11 +23,11 @@ const CampgroundSchema = new Schema({
         type: {
             type: String,
             enum: ['Point'],
-            required: true
+            default: 'Point'
         },
         coordinates: {
             type: [Number],
-            required: true
+            index: '2dsphere'
         }
     },
     price: Number,
