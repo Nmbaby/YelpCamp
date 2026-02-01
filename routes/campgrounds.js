@@ -104,28 +104,25 @@ router.delete('/:id', isLoggedIn, isAuthor, async (req, res, next) => {
 	}
 });
 
-// Create campground (example handler)
-router.post('/', isLoggedIn, async (req, res, next) => {
-	try {
-		const campData = req.body.campground;
-		const campground = new Campground(campData);
-		// Set the author to the currently logged-in user
-		campground.author = req.user._id;
-		await campground.save();
-		req.flash('success', 'Successfully created a new campground!');
-		res.redirect(`/campgrounds/${campground._id}`);
-	} catch (err) {
-		next(err);
-	}
-});
-
-// Update campground (example handler)
-router.put('/:id', isLoggedIn, isAuthor, async (req, res, next) => {
+// Show campground - populate author and reviews.author so templates can safely access author info
+router.get('/:id', async (req, res, next) => {
 	try {
 		const { id } = req.params;
-		const updated = await Campground.findByIdAndUpdate(id, req.body.campground, { new: true, runValidators: true });
-		req.flash('success', 'Successfully updated campground!');
-		res.redirect(`/campgrounds/${updated._id}`);
+		// Populate the campground's author, and also populate each review's author
+		const campground = await Campground.findById(id)
+			.populate('author') // author of the campground
+			.populate({        // for reviews, also populate their authors
+				path: 'reviews',
+				populate: { path: 'author' }
+			});
+
+		// If campground wasn't found (deleted or bad id), avoid rendering and redirect with a message
+		if (!campground) {
+			req.flash('error', 'Campground not found.');
+			return res.redirect('/campgrounds');
+		}
+
+		res.render('campgrounds/show', { campground });
 	} catch (err) {
 		next(err);
 	}

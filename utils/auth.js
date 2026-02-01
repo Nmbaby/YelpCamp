@@ -27,6 +27,12 @@ async function isAuthor(req, res, next) {
 			req.flash('error', 'Campground not found.');
 			return res.redirect('/campgrounds');
 		}
+		// Defensive: if campground has no author (legacy/seeded data),
+		// do NOT allow editing/deleting; inform user and redirect.
+		if (!campground.author) {
+			req.flash('error', 'This campground has no associated author and cannot be modified.');
+			return res.redirect(`/campgrounds/${id}`);
+		}
 		if (!req.user || campground.author.toString() !== req.user._id.toString()) {
 			req.flash('error', 'You do not have permission to do that.');
 			return res.redirect(`/campgrounds/${id}`);
