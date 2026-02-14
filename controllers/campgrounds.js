@@ -1,7 +1,15 @@
 const Campground = require('../models/campground');
 const mbxGeocoding = require("@mapbox/mapbox-sdk/services/geocoding");
 const mapBoxToken = process.env.MAPBOX_TOKEN;
-const geocoder = mbxGeocoding({ accessToken: mapBoxToken });
+let geocoder = null;
+if (mapBoxToken) {
+    try {
+        geocoder = mbxGeocoding({ accessToken: mapBoxToken });
+    } catch (err) {
+        console.warn('Mapbox geocoding is disabled: invalid MAPBOX_TOKEN or initialization error.');
+        geocoder = null;
+    }
+}
 const { cloudinary } = require("../cloudinary");
 
 
@@ -16,12 +24,28 @@ module.exports.renderNewForm = (req, res) => {
 }
 
 module.exports.createCampground = async (req, res, next) => {
-    const geoData = await geocoder.forwardGeocode({
-        query: req.body.campground.location,
-        limit: 1
-    }).send()
+    // Attempt geocoding if a valid geocoder is available
+    let geoData = null;
+    if (geocoder) {
+        try {
+            geoData = await geocoder.forwardGeocode({
+                query: req.body.campground.location,
+                limit: 1
+            }).send();
+        } catch (e) {
+            console.warn('Geocoding failed:', e && e.message ? e.message : e);
+            geoData = null;
+        }
+    }
+
     const campground = new Campground(req.body.campground);
-    campground.geometry = geoData.body.features[0].geometry;
+    if (geoData && geoData.body && geoData.body.features && geoData.body.features[0]) {
+        campground.geometry = geoData.body.features[0].geometry;
+    } else {
+        // Fallback geometry so the app can run without a Mapbox token
+        campground.geometry = campground.geometry || { type: 'Point', coordinates: [0, 0] };
+    }
+
     campground.images = req.files.map(f => ({ url: f.path, filename: f.filename }));
     campground.author = req.user._id;
     await campground.save();

@@ -24,7 +24,9 @@ const userRoutes = require('./routes/users');
 const campgroundRoutes = require('./routes/campgrounds');
 const reviewRoutes = require('./routes/reviews');
 const helmet = require('helmet');
-
+const morgan = require('morgan');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
 
 const mongoSanitize = require("express-mongo-sanitize");
 
@@ -138,6 +140,11 @@ function createMongoStore(mongoUrl) {
 
 const store = createMongoStore(dbUrl);
 
+// If running behind a trusted proxy (e.g., Heroku), enable trust proxy so secure cookies work.
+if (process.env.NODE_ENV === 'production') {
+	app.set('trust proxy', 1);
+}
+
 app.use(session({
 	store: store || undefined,
 	name: 'session', // cookie name - cleared on logout in users.js
@@ -146,7 +153,8 @@ app.use(session({
 	saveUninitialized: false,
 	cookie: {
 		httpOnly: true,
-		// secure: true, // enable in production when using HTTPS
+		secure: process.env.NODE_ENV === 'production',
+		sameSite: 'lax',
 		expires: Date.now() + 1000 * 60 * 60 * 24 * 7,
 		maxAge: 1000 * 60 * 60 * 24 * 7
 	}
@@ -164,7 +172,8 @@ app.set('views', path.join(__dirname, 'views'))
 
 app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride('_method'));
-app.use(express.static(path.join(__dirname, 'public')))
+const staticOptions = (process.env.NODE_ENV === 'production') ? { maxAge: '1d', etag: true } : {};
+app.use(express.static(path.join(__dirname, 'public'), staticOptions));
 app.use(mongoSanitize({
     replaceWith:'_' 
 }));
@@ -235,7 +244,20 @@ app.use(helmet.contentSecurityPolicy({
 	}
 }));
 
+// Logging
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
+// Compression
+app.use(compression());
+
+// Rate limiter to mitigate brute-force and abusive traffic
+const limiter = rateLimit({
+	windowMs: 15 * 60 * 1000, // 15 minutes
+	max: 100, // limit each IP to 100 requests per windowMs
+	standardHeaders: true,
+	legacyHeaders: false
+});
+app.use(limiter);
 
 
 // Make current user and flash messages available in all templates
@@ -267,8 +289,9 @@ app.use((err, req, res, next) => {
     res.status(statusCode).render('error', { err })
 })
 
-app.listen(3000, () => {
-    console.log('Serving on port 3000')
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+    console.log(`Serving on port ${port}`)
 })
 
 
