@@ -368,4 +368,4 @@ Live Demo: [https://yelpcamp-1-qe7z.onrender.com](https://yelpcamp-1-qe7z.onrend
 
 ---
 
-**Built with ❤️ by [Your Name]**
+**Built with ❤️ by Nahom Mulugeta**
